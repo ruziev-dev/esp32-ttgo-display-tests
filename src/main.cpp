@@ -86,6 +86,7 @@ void handle_NotFound()
 
 void setup()
 {
+  // ESP.getChipModel() <- Learn this API
   // WiFi.mode(WIFI_AP_STA);
 
   tft.init();
