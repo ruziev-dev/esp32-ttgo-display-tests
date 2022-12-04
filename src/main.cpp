@@ -3,6 +3,7 @@
 #include <SPI.h>
 #include <WiFi.h>
 #include <WebServer.h>
+#include <HTTPClient.h>
 #include <FS.h>
 #include <SPIFFS.h>
 #include <ArduinoJson.h>
@@ -115,4 +116,44 @@ void setup()
 void loop()
 {
   server.handleClient();
+
+  if ((millis() - previousTime) > 5000)
+  {
+    // Check WiFi connection status
+    if (WiFi.status() == WL_CONNECTED)
+    {
+      HTTPClient http;
+
+      String serverPath = "https://rpc.mainnet.near.org";
+
+      // Your Domain name with URL path or IP address with path
+      http.begin(serverPath.c_str());
+
+      // If you need Node-RED/server authentication, insert user and password below
+      // http.setAuthorization("REPLACE_WITH_SERVER_USERNAME", "REPLACE_WITH_SERVER_PASSWORD");
+
+      // Send HTTP GET request
+      int httpResponseCode = http.GET();
+
+      if (httpResponseCode > 0)
+      {
+        Serial.print("HTTP Response code: ");
+        Serial.println(httpResponseCode);
+        String payload = http.getString();
+        Serial.println(payload);
+      }
+      else
+      {
+        Serial.print("Error code: ");
+        Serial.println(httpResponseCode);
+      }
+      // Free resources
+      http.end();
+    }
+    else
+    {
+      Serial.println("WiFi Disconnected");
+    }
+    previousTime = millis();
+  }
 }
