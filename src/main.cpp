@@ -1,20 +1,16 @@
 #include <Arduino.h>
-#include <TFT_eSPI.h>
-#include <SPI.h>
 #include <WiFi.h>
 #include <WebServer.h>
 #include <HTTPClient.h>
 #include <FS.h>
 #include <SPIFFS.h>
 #include <ArduinoJson.h>
+#include "Display.h"
 
 #define JSON_CONFIG_FILE "/test_config.json"
 
-TFT_eSPI tft = TFT_eSPI();
-TFT_eSprite img = TFT_eSprite(&tft);
-TFT_eSprite state = TFT_eSprite(&tft);
-
 WebServer server(80);
+Display display = Display();
 
 const char *ssid = "OpenWRT-WIFI-2.4G";
 const char *password = "FtYpp86z";
@@ -65,45 +61,34 @@ String SendHTML(String data)
 void handle_OnConnect()
 {
   Serial.println("handle_OnConnect");
-  state.drawString("request: handle_OnConnect()", 0, 0);
-  state.pushSprite(0, 40);
+  display.setRequestInfo("handle_OnConnect()");
   server.send(200, "text/html", SendHTML("handle_OnConnect"));
 }
 
 void handle_info()
 {
   Serial.println("handle_info");
-  state.drawString("request: handle_info()", 0, 0);
-  state.pushSprite(0, 40);
+  display.setRequestInfo("handle_info()");
   server.send(200, "text/html", SendHTML("handle_info"));
 }
 
 void handle_NotFound()
 {
-  state.drawString("request: handle_NotFound()", 0, 0);
-  state.pushSprite(0, 40);
+  display.setRequestInfo("handle_NotFound()");
   server.send(404, "text/plain", "Not found");
 }
 
 void setup()
 {
-  // ESP.getChipModel() <- Learn this API
+
   // WiFi.mode(WIFI_AP_STA);
-
-  tft.init();
-  img.createSprite(TFT_WIDTH, TFT_HEIGHT);
-  state.createSprite(TFT_WIDTH, TFT_HEIGHT);
-
-  img.setTextColor(TFT_GREEN);
 
   Serial.begin(115200);
   Serial.println("It Works!");
   initWiFi();
 
-  img.drawString("IP: " + WiFi.localIP().toString(), 5, 0, 2);
-  img.drawString("MAC: " + WiFi.macAddress(), 5, 20, 2);
-
-  img.pushSprite(0, 0);
+  display.init();
+  display.setStateInfo(WiFi.localIP().toString(), WiFi.macAddress());
 
   server.on("/", handle_OnConnect);
   server.on("/info", handle_info);
@@ -111,10 +96,12 @@ void setup()
 
   server.begin();
   Serial.println("HTTP server started");
+  Serial.println("MD5: " + ESP.getSketchMD5());
 }
 
 void loop()
 {
+
   server.handleClient();
 
   if ((millis() - previousTime) > 5000)
@@ -129,10 +116,6 @@ void loop()
       // Your Domain name with URL path or IP address with path
       http.begin(serverPath.c_str());
 
-      // If you need Node-RED/server authentication, insert user and password below
-      // http.setAuthorization("REPLACE_WITH_SERVER_USERNAME", "REPLACE_WITH_SERVER_PASSWORD");
-
-      // Send HTTP GET request
       int httpResponseCode = http.GET();
 
       if (httpResponseCode > 0)
