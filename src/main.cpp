@@ -1,6 +1,14 @@
 #include <Arduino.h>
+
+#ifdef ESP32
 #include <WiFi.h>
-#include <WebServer.h>
+#include <AsyncTCP.h>
+#else
+#include <ESP8266WiFi.h>
+#include <ESPAsyncTCP.h>
+#endif
+#include <ESPAsyncWebServer.h>
+
 #include <HTTPClient.h>
 #include <FS.h>
 #include <SPIFFS.h>
@@ -9,7 +17,7 @@
 
 #define JSON_CONFIG_FILE "/test_config.json"
 
-WebServer server(80);
+AsyncWebServer server(80);
 Display display = Display();
 
 const char *ssid = "OpenWRT-WIFI-2.4G";
@@ -58,30 +66,28 @@ String SendHTML(String data)
   return ptr;
 }
 
-void handle_OnConnect()
+void handle_OnConnect(AsyncWebServerRequest *request)
 {
   Serial.println("handle_OnConnect");
   display.setRequestInfo("handle_OnConnect()");
-  server.send(200, "text/html", SendHTML("handle_OnConnect"));
+  request->send(200, "text/html", SendHTML("handle_OnConnect"));
 }
 
-void handle_info()
+void handle_info(AsyncWebServerRequest *request)
 {
   Serial.println("handle_info");
   display.setRequestInfo("handle_info()");
-  server.send(200, "text/html", SendHTML("handle_info"));
+  request->send(200, "text/html", SendHTML("handle_info"));
 }
 
-void handle_NotFound()
+void handle_NotFound(AsyncWebServerRequest *request)
 {
   display.setRequestInfo("handle_NotFound()");
-  server.send(404, "text/plain", "Not found");
+  request->send(404, "text/plain", "{\"error\": \"Error 404\"}");
 }
 
 void setup()
 {
-
-  // WiFi.mode(WIFI_AP_STA);
 
   Serial.begin(115200);
   Serial.println("It Works!");
@@ -101,8 +107,6 @@ void setup()
 
 void loop()
 {
-
-  server.handleClient();
 
   if ((millis() - previousTime) > 5000)
   {
