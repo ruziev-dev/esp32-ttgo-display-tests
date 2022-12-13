@@ -1,28 +1,36 @@
 #include "utils.h"
 
-String SendHTML(String data)
+String sha1(String payloadStr)
 {
-    String ptr = "<!DOCTYPE html> <html>\n";
-    ptr += "<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, user-scalable=no\">\n";
-    ptr += "<title>LED Control</title>\n";
-    ptr += "<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}\n";
-    ptr += "body{margin-top: 50px;} h1 {color: #444444;margin: 50px auto 30px;} h3 {color: #444444;margin-bottom: 50px;}\n";
-    ptr += ".button {display: block;width: 80px;background-color: #3498db;border: none;color: white;padding: 13px 30px;text-decoration: none;font-size: 25px;margin: 0px auto 35px;cursor: pointer;border-radius: 4px;}\n";
-    ptr += ".button-on {background-color: #3498db;}\n";
-    ptr += ".button-on:active {background-color: #2980b9;}\n";
-    ptr += ".button-off {background-color: #34495e;}\n";
-    ptr += ".button-off:active {background-color: #2c3e50;}\n";
-    ptr += "p {font-size: 14px;color: #888;margin-bottom: 10px;}\n";
-    ptr += "</style>\n";
-    ptr += "</head>\n";
-    ptr += "<body>\n";
-    ptr += "<h1>ESP32 Web Server</h1>\n";
-    ptr += "<h3>Using Access Point(AP) Mode</h3>\n";
-    ptr += data;
-    ptr += "<a class=\"button button-on\" href=\"/led1on\">ON</a>";
-    ptr += "<a class=\"button button-off\" href=\"/led1on\">OFF</a>";
+    const char *payload = payloadStr.c_str();
 
-    ptr += "</body>\n";
-    ptr += "</html>\n";
-    return ptr;
+    int size = 20;
+
+    byte shaResult[size];
+
+    mbedtls_md_context_t ctx;
+    mbedtls_md_type_t md_type = MBEDTLS_MD_SHA1;
+
+    const size_t payloadLength = strlen(payload);
+
+    mbedtls_md_init(&ctx);
+    mbedtls_md_setup(&ctx, mbedtls_md_info_from_type(md_type), 0);
+    mbedtls_md_starts(&ctx);
+    mbedtls_md_update(&ctx, (const unsigned char *)payload, payloadLength);
+    mbedtls_md_finish(&ctx, shaResult);
+    mbedtls_md_free(&ctx);
+
+    String hashStr = "";
+
+    for (uint16_t i = 0; i < size; i++)
+    {
+        String hex = String(shaResult[i], HEX);
+        if (hex.length() < 2)
+        {
+            hex = "0" + hex;
+        }
+        hashStr += hex;
+    }
+
+    return hashStr;
 }

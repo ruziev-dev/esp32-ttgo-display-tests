@@ -16,13 +16,18 @@
 #include "Display.h"
 #include "utils.h"
 
-#define JSON_CONFIG_FILE "/test_config.json"
-
 AsyncWebServer server(80);
 Display display = Display();
 
+IPAddress local_ip(192, 168, 1, 100);
+IPAddress gateway(192, 168, 1, 1);
+IPAddress subnet(255, 255, 255, 0);
+
 const char *ssid = "OpenWRT-WIFI-2.4G";
 const char *password = "FtYpp86z";
+const char *www_username = "admin";
+const char *www_password = "admin";
+
 unsigned long currentTime = millis();
 unsigned long previousTime = 0;
 const long timeoutTime = 2000;
@@ -31,6 +36,7 @@ void initWiFi()
 {
   // WiFi.mode(WIFI_STA);
   WiFi.mode(WIFI_AP_STA);
+  // WiFi.softAPConfig(local_ip, gateway, subnet);
   WiFi.begin(ssid, password);
   Serial.print("Connecting to WiFi ..");
   while (WiFi.status() != WL_CONNECTED)
@@ -41,62 +47,126 @@ void initWiFi()
   Serial.println(WiFi.localIP());
 }
 
-void handle_OnConnect(AsyncWebServerRequest *request)
-{
-  Serial.println("handle_OnConnect");
-  display.setRequestInfo("handle_OnConnect()");
-  request->send(200, "text/html", SendHTML("handle_OnConnect"));
-}
-
-void handle_info(AsyncWebServerRequest *request)
-{
-  Serial.println("handle_info");
-  display.setRequestInfo("handle_info()");
-  request->send(200, "text/html", SendHTML("handle_info"));
-}
-
 void handle_NotFound(AsyncWebServerRequest *request)
 {
   display.setRequestInfo("handle_NotFound()");
   request->send(404, "text/plain", "{\"error\": \"Error 404\"}");
 }
 
-void check_auth(AsyncWebServerRequest *request)
+void handleLogin(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total)
 {
-  //if (!request->authenticate(www_username, www_password))
-  //  request->requestAuthentication();
+  AsyncWebServerResponse *resp = request->beginResponse(401, "application/json");
 
-  request->send(404, "text/plain", "{\"error\": \"Error 404\"}");
+  if (!index)
+  {
+    Serial.printf("BodyStart: %u B\n", total);
+  }
+  for (size_t i = 0; i < len; i++)
+  {
+    Serial.write(data[i]);
+  }
+  if (index + len == total)
+  {
+    Serial.printf("BodyEnd: %u B\n", total);
+  }
+
+  Serial.println("Handle login");
+  String msg;
+  if (request->hasHeader("Cookie"))
+  {
+    // Print cookies
+    Serial.print("Found cookie: ");
+    String cookie = request->header("Cookie");
+    Serial.println(cookie);
+  }
+  if (request->hasArg("username") && request->hasArg("password"))
+  {
+    Serial.print("Found parameter: ");
+    if (request->arg("username") == String(www_username) && request->arg("password") == String(www_password))
+    {
+
+      resp->addHeader("Location", "/");
+      resp->addHeader("Cache-Control", "no-cache");
+
+      Serial.println("getLocalAddress: " + String(request->client()->localIP()));
+
+      String token = sha1(String(www_username) + ":" + String(www_password) + ":" + String(request->client()->getLocalAddress()));
+
+      resp->addHeader("Set-Cookie", "ESPSESSIONID=" + token);
+      request->send(resp);
+      Serial.println("Log in Successful. New TOKEN: ESPSESSIONID=" + token);
+      return;
+    }
+    msg = "Wrong username/password! try again.";
+    Serial.println("Log in Failed");
+    resp->addHeader("Location", "/login.html?msg=" + msg);
+    resp->addHeader("Cache-Control", "no-cache");
+    request->send(resp);
+    return;
+  }
+  else
+  {
+    Serial.println("There arent arguments username & password!");
+    request->send(401, "application/json", "{\"error\":\"Set username & password!\"}");
+    return;
+  }
+}
+
+void handleLogout(AsyncWebServerRequest *request)
+{
+
+  AsyncWebServerResponse *resp = request->beginResponse(301);
+
+  Serial.println("Disconnection");
+  resp->addHeader("Location", "/");
+  resp->addHeader("Cache-Control", "no-cache");
+  resp->addHeader("Set-Cookie", "ESPSESSIONID=0");
+  request->send(resp);
+  return;
 }
 
 void setup()
 {
 
   Serial.begin(115200);
-  Serial.println("It Works!");
+
   initWiFi();
+
+  Serial.println(F("Inizializing FS..."));
+  if (!SPIFFS.begin())
+  {
+    if (SPIFFS.format())
+      Serial.println(("WARN", "sys", F("Filesystem formatted"), ""));
+    else
+      Serial.println(F("Filesystem couldn't be formatted"));
+  }
+  else
+    Serial.print(F("FS DONE"));
 
   display.init();
   display.setStateInfo(WiFi.localIP().toString(), WiFi.macAddress());
 
-  server.on("/auth", check_auth);
-  server.on("/", handle_OnConnect);
-  server.on("/info", handle_info);
+  server.on(
+      "/login", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL, handleLogin);
+  server.on("/logout", HTTP_GET, handleLogout);
+
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
+            { request->send(SPIFFS, "/index.html", "text/html"); });
+  server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request)
+            { request->send(SPIFFS, "/style.css", "text/css"); });
+  server.on("/index.js", HTTP_GET, [](AsyncWebServerRequest *request)
+            { request->send(SPIFFS, "/index.js", "text/javascript"); });
+
   server.onNotFound(handle_NotFound);
 
   server.begin();
-  Serial.println("HTTP server started");
-  Serial.println("MD5: " + ESP.getSketchMD5());
 
-  Serial.print(F("Inizializing FS..."));
-  if (SPIFFS.begin())
-  {
-    Serial.println(F("done."));
-  }
-  else
-  {
-    Serial.println(F("fail."));
-  }
+  Serial.println(F("[ INFO ] ESP v"));
+  uint32_t ideSize = ESP.getFlashChipSize();
+  FlashMode_t ideMode = ESP.getFlashChipMode();
+  Serial.println("Flash ide  size: " + String(ideSize));
+  Serial.println("Flash ide speed: " + String(ESP.getFlashChipSpeed()));
+  Serial.println("MD5: " + ESP.getSketchMD5());
 }
 
 void loop()
@@ -114,7 +184,8 @@ void loop()
       // Your Domain name with URL path or IP address with path
       http.begin(serverPath.c_str());
 
-      int httpResponseCode = http.GET();
+      http.addHeader("Content-type", "application/json");
+      int httpResponseCode = http.POST("{ \"jsonrpc\": \"2.0\",\"id\": \"dontcare\", \"method\": \"query\", \"params\": {\"request_type\": \"view_account\",\"finality\":\"final\",\"account_id\":\"ruziev.poolv1.near\"}}");
 
       if (httpResponseCode > 0)
       {

@@ -1,0 +1,9 @@
+{
+  "admin_login": "admin",
+  "admin_path": "admin",
+  "ssid": null,
+  "ap_path": null,
+  "ipAddr": "192.168.1.101",
+  "gateway": "192.168.1.1",
+  "subnet": "255.255.0.0"
+}
