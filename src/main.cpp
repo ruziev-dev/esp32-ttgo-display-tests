@@ -16,6 +16,8 @@
 #include "Display.h"
 #include "utils.h"
 
+#define APPLICATION_JSON "application/json"
+
 AsyncWebServer server(80);
 Display display = Display();
 
@@ -50,12 +52,13 @@ void initWiFi()
 void handle_NotFound(AsyncWebServerRequest *request)
 {
   display.setRequestInfo("handle_NotFound()");
-  request->send(404, "text/plain", "{\"error\": \"Error 404\"}");
+  String path = request->pathArg(0);
+  request->send(404, APPLICATION_JSON, "{\"error\": \"Error 404: " + path + " not found\"}");
 }
 
 void handleLogin(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total)
 {
-  AsyncWebServerResponse *resp = request->beginResponse(401, "application/json");
+  AsyncWebServerResponse *resp = request->beginResponse(401, APPLICATION_JSON);
 
   if (!index)
   {
@@ -85,7 +88,6 @@ void handleLogin(AsyncWebServerRequest *request, uint8_t *data, size_t len, size
     if (request->arg("username") == String(www_username) && request->arg("password") == String(www_password))
     {
 
-      resp->addHeader("Location", "/");
       resp->addHeader("Cache-Control", "no-cache");
 
       Serial.println("getLocalAddress: " + String(request->client()->localIP()));
@@ -97,9 +99,7 @@ void handleLogin(AsyncWebServerRequest *request, uint8_t *data, size_t len, size
       Serial.println("Log in Successful. New TOKEN: ESPSESSIONID=" + token);
       return;
     }
-    msg = "Wrong username/password! try again.";
     Serial.println("Log in Failed");
-    resp->addHeader("Location", "/login.html?msg=" + msg);
     resp->addHeader("Cache-Control", "no-cache");
     request->send(resp);
     return;
@@ -118,7 +118,6 @@ void handleLogout(AsyncWebServerRequest *request)
   AsyncWebServerResponse *resp = request->beginResponse(301);
 
   Serial.println("Disconnection");
-  resp->addHeader("Location", "/");
   resp->addHeader("Cache-Control", "no-cache");
   resp->addHeader("Set-Cookie", "ESPSESSIONID=0");
   request->send(resp);
@@ -150,12 +149,14 @@ void setup()
       "/login", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL, handleLogin);
   server.on("/logout", HTTP_GET, handleLogout);
 
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
-            { request->send(SPIFFS, "/index.html", "text/html"); });
+  /* server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
+            { request->send(SPIFFS, "/www/index.html", "text/html"); });
   server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request)
-            { request->send(SPIFFS, "/style.css", "text/css"); });
+            { request->send(SPIFFS, "/www/style.css", "text/css"); });
   server.on("/index.js", HTTP_GET, [](AsyncWebServerRequest *request)
-            { request->send(SPIFFS, "/index.js", "text/javascript"); });
+            { request->send(SPIFFS, "/www/index.js", "text/javascript"); }); */
+
+  server.serveStatic("/", SPIFFS, "/www/").setDefaultFile("index.html");
 
   server.onNotFound(handle_NotFound);
 
