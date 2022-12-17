@@ -1,9 +1,10 @@
 {
   "admin_login": "admin",
-  "admin_path": "admin",
+  "admin_password": "admin",
   "ssid": null,
-  "ap_path": null,
-  "ipAddr": "192.168.1.101",
-  "gateway": "192.168.1.1",
-  "subnet": "255.255.0.0"
+  "ap_password": null,
+  "ip_addr": "192.168.1.101",
+  "gateway": "192.168.1.101",
+  "subnet": "255.255.0.0",
+  "ipfs_node": ""
 }
